@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandro Koch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&display=swap">
+<style>
+/* Layout: a 16-bit game screen over a pixel night sky. Title banner, then a party menu (the four roles)
+   beside a dialog window that tells the selected role's story; status, equipment and contact windows below.
+   Deliberately single-theme. */
+:root {
+  --night: #0b0b24;
+  --win-top: #2d3fa6;
+  --win-bot: #121a5c;
+  --frame: #f2f2ff;
+  --frame-in: #6c7ad8;
+  --text: #f4f4ff;
+  --dim: #aab2ee;
+  --gold: #ffd34d;
+  --shadow: #05051a;
+  --pixel: "Press Start 2P", "Courier New", monospace;
+  --dot: "DotGothic16", "MS Gothic", "Courier New", monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--night); }
+body {
+  margin: 0; background: var(--night); color: var(--text);
+  font: 400 1.1875rem/1.55 var(--dot);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+#sky { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; z-index: 0; }
+.screen { position: relative; z-index: 1; max-width: 60rem; margin: 0 auto; padding-block: 1rem 3rem; }
+a { color: var(--gold); text-underline-offset: 4px; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.win {
+  background: linear-gradient(var(--win-top), var(--win-bot));
+  border: 3px solid var(--frame);
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px var(--shadow), inset 0 0 0 2px var(--frame-in), 6px 6px 0 3px rgba(0,0,0,.45);
+  padding: 1rem 1.15rem;
+  min-width: 0;
+}
+.win h2 { font: 400 0.75rem/1.4 var(--pixel); color: var(--gold); margin: 0 0 0.9rem; letter-spacing: 0.04em; }
+
+.topbar { display: flex; justify-content: flex-end; }
+.lang { display: flex; gap: 0.25rem; padding: 0.4rem 0.5rem; }
+.lang button { font: 400 0.625rem/1 var(--pixel); color: var(--dim); background: none; border: 0; padding: 0.45rem 0.4rem 0.45rem 1.1rem; cursor: pointer; position: relative; }
+.lang button[aria-pressed="true"] { color: var(--text); }
+.lang button[aria-pressed="true"]::before { content: "▶"; position: absolute; left: 0.1rem; color: var(--gold); }
+
+.title { text-align: center; padding-block: 3rem 2.5rem; }
+.title h1 { font: 400 clamp(1.5rem, 6.5vw, 3.25rem)/1.25 var(--pixel); color: var(--gold); margin: 0; text-shadow: 4px 4px 0 #a2420e, 8px 8px 0 var(--shadow); text-wrap: balance; }
+.title .sub { font: 400 0.6875rem/1.6 var(--pixel); color: var(--dim); margin: 1.25rem 0 0; letter-spacing: 0.1em; }
+.title .tag { font-size: 1.375rem; margin: 1.25rem auto 0; max-width: 34ch; text-shadow: 2px 2px 0 var(--shadow); }
+.start { display: inline-block; margin-top: 2rem; font: 400 0.75rem/1 var(--pixel); color: var(--text); text-decoration: none; padding: 0.6rem 0.4rem; }
+.start span { animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.intro { margin-bottom: 1.5rem; }
+.intro p { margin: 0; }
+
+.game { display: grid; grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.party { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.member {
+  width: 100%; display: grid; grid-template-columns: 1.1rem 48px minmax(0, 1fr); align-items: center; gap: 0.6rem;
+  background: none; border: 0; color: var(--text); text-align: left; padding: 0.4rem 0.25rem; cursor: pointer; border-radius: 4px;
+}
+.member:hover { background: rgba(255,255,255,.06); }
+.member .cur { font: 400 0.75rem/1 var(--pixel); color: var(--gold); visibility: hidden; }
+.member[aria-selected="true"] .cur { visibility: visible; animation: nudge .6s steps(2) infinite; }
+@keyframes nudge { 50% { transform: translateX(3px); } }
+.member canvas { width: 48px; height: 48px; image-rendering: pixelated; display: block; }
+.member .nm { font: 400 0.625rem/1.5 var(--pixel); overflow-wrap: anywhere; }
+.member .job { display: block; font: 400 0.9375rem/1.2 var(--dot); color: var(--dim); margin-top: 0.2rem; }
+.hint { font: 400 0.5625rem/1.6 var(--pixel); color: var(--dim); margin: 0.9rem 0 0; }
+
+.dialog { min-height: 20rem; cursor: pointer; }
+.speaker { display: inline-block; font: 400 0.75rem/1 var(--pixel); color: var(--gold); margin-bottom: 0.9rem; }
+.say { margin: 0 0 1rem; min-height: 6.2em; }
+.skills { list-style: none; margin: 0; padding: 0.9rem 0 0; border-top: 2px dashed var(--frame-in); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 1.25rem; }
+.skills li { display: flex; gap: 0.5rem; min-width: 0; }
+.skills li::before { content: "◆"; color: var(--gold); font-size: 0.75em; line-height: 2; flex: none; }
+.skills .k { color: var(--dim); }
+.more { text-align: right; font: 400 0.75rem/1 var(--pixel); color: var(--gold); margin-top: 0.5rem; animation: blink 1s steps(1) infinite; }
+.more[hidden] { display: none; }
+
+.lower { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+.stats { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.35rem 1.25rem; }
+.stats dt { font: 400 0.625rem/2.4 var(--pixel); color: var(--dim); }
+.stats dd { margin: 0; }
+.contact { margin-top: 1.5rem; }
+.contact p { margin: 0 0 0.75rem; }
+.email-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; }
+.email { font-size: 1.375rem; user-select: all; overflow-wrap: anywhere; }
+.btn { font: 400 0.625rem/1 var(--pixel); color: var(--shadow); background: var(--gold); border: 0; padding: 0.75rem 0.9rem; cursor: pointer; box-shadow: 3px 3px 0 #a2420e; }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #a2420e; }
+.links { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 1rem; font: 400 0.6875rem/1 var(--pixel); }
+.back { display: inline-block; margin-top: 2rem; font: 400 0.625rem/1 var(--pixel); }
+
+@media (max-width: 760px) {
+  .game, .lower { grid-template-columns: minmax(0, 1fr); }
+  .party { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .member { grid-template-columns: 0.9rem 40px minmax(0, 1fr); gap: 0.45rem; }
+  .member canvas { width: 40px; height: 40px; }
+  .skills { grid-template-columns: minmax(0, 1fr); }
+  .dialog { min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .start span, .member[aria-selected="true"] .cur, .more { animation: none; }
+}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<main class="screen">
+  <div class="topbar">
+    <div class="win lang" role="group" data-i18n-attr="aria-label:lang_label">
+      <button type="button" data-set-lang="en">EN</button>
+      <button type="button" data-set-lang="de">DE</button>
+    </div>
+  </div>
+
+  <header class="title">
+    <h1 data-name></h1>
+    <p class="sub">— <span data-handle></span> —</p>
+    <p class="tag" data-i18n="tagline"></p>
+    <a class="start" href="#party"><span data-i18n="press_start"></span></a>
+  </header>
+
+  <div class="win intro"><p data-i18n="intro"></p></div>
+
+  <div class="game" id="party">
+    <nav class="win">
+      <h2 data-i18n="party"></h2>
+      <ul class="party" role="tablist" aria-orientation="vertical" data-i18n-attr="aria-label:party">
+        <li><button class="member" role="tab" data-job="dev" aria-selected="true" aria-controls="dialog"><span class="cur">▶</span><canvas width="12" height="12" data-crest="dev"></canvas><span><span class="nm" data-i18n="role_dev"></span></span></button></li>
+        <li><button class="member" role="tab" data-job="sci" aria-selected="false" aria-controls="dialog" tabindex="-1"><span class="cur">▶</span><canvas width="12" height="12" data-crest="sci"></canvas><span><span class="nm" data-i18n="role_sci"></span></span></button></li>
+        <li><button class="member" role="tab" data-job="pm" aria-selected="false" aria-controls="dialog" tabindex="-1"><span class="cur">▶</span><canvas width="12" height="12" data-crest="pm"></canvas><span><span class="nm" data-i18n="role_pm"></span></span></button></li>
+        <li><button class="member" role="tab" data-job="human" aria-selected="false" aria-controls="dialog" tabindex="-1"><span class="cur">▶</span><canvas width="12" height="12" data-crest="human"></canvas><span><span class="nm" data-i18n="role_human"></span></span></button></li>
+      </ul>
+      <p class="hint" data-i18n="hint"></p>
+    </nav>
+
+    <section class="win dialog" id="dialog" role="tabpanel" aria-live="polite">
+      <span class="speaker" id="speaker"></span>
+      <p class="say" id="say"></p>
+      <ul class="skills" id="skills"></ul>
+      <p class="more" id="more" hidden>▼</p>
+    </section>
+  </div>
+
+  <div class="lower">
+    <section class="win">
+      <h2 data-i18n="status"></h2>
+      <dl class="stats">
+        <dt data-i18n="s_name"></dt><dd data-name></dd>
+        <dt data-i18n="s_class"></dt><dd>Dr.-Ing.</dd>
+        <dt data-i18n="s_guild"></dt><dd>Vector Informatik</dd>
+        <dt data-i18n="s_home"></dt><dd>Karlsruhe</dd>
+      </dl>
+    </section>
+    <section class="win">
+      <h2 data-i18n="equip"></h2>
+      <dl class="stats">
+        <dt data-i18n="e_weapon"></dt><dd data-i18n="e_weapon_v"></dd>
+        <dt data-i18n="e_tool"></dt><dd data-i18n="e_tool_v"></dd>
+        <dt data-i18n="e_relic"></dt><dd data-i18n="e_relic_v"></dd>
+        <dt data-i18n="e_tome"></dt><dd data-i18n="e_tome_v"></dd>
+      </dl>
+    </section>
+  </div>
+
+  <section class="win contact" id="contact">
+    <h2 data-i18n="contact_t"></h2>
+    <p data-i18n="contact_d"></p>
+    <div class="email-line">
+      <span class="email" data-email></span>
+      <button type="button" class="btn" data-copy-email><span data-copy-label data-i18n="copy"></span></button>
+    </div>
+    <div class="links"><a data-link="github">GitHub</a><a data-link="linkedin">LinkedIn</a><a data-link="orcid">ORCID</a></div>
+  </section>
+
+</main>
+<script src="shared/content.js"></script>
+<script>
+window.PAGE_T = {
+  en: {
+    press_start: "▶ PRESS START", party: "PARTY", hint: "↑↓ choose · click to skip text",
+    status: "STATUS", s_name: "NAME", s_class: "CLASS", s_guild: "GUILD", s_home: "HOME",
+    equip: "EQUIPMENT", e_weapon: "WEAPON", e_weapon_v: "Fountain pen", e_tool: "TOOL", e_tool_v: "Soldering iron",
+    e_relic: "RELIC", e_relic_v: "3D printer", e_tome: "TOME", e_tome_v: "War and Peace",
+    k_stack: "Stack", k_thesis: "Thesis", k_topics: "Research", k_pubs: "Papers"
+  },
+  de: {
+    press_start: "▶ START DRÜCKEN", party: "PARTY", hint: "↑↓ wählen · Klick überspringt Text",
+    status: "STATUS", s_name: "NAME", s_class: "KLASSE", s_guild: "GILDE", s_home: "HEIMAT",
+    equip: "AUSRÜSTUNG", e_weapon: "WAFFE", e_weapon_v: "Füllfederhalter", e_tool: "WERKZEUG", e_tool_v: "Lötkolben",
+    e_relic: "RELIKT", e_relic_v: "3D-Drucker", e_tome: "FOLIANT", e_tome_v: "Krieg und Frieden",
+    k_stack: "Stack", k_thesis: "Dissertation", k_topics: "Forschung", k_pubs: "Paper"
+  }
+};
+
+/* ---------- pixel crests ---------- */
+var CRESTS = {
+  dev: ["............", ".KKKKKKKKKK.", ".KBBBBBBBBK.", ".KBGBBBBBBK.", ".KBBGBBBBBK.", ".KBGBBBBBBK.",
+        ".KBBBBGGGBK.", ".KBBBBBBBBK.", ".KKKKKKKKKK.", "....KKKK....", "..KKKKKKKK..", "............"],
+  sci: ["....KKKK....", ".....KK.....", ".....KK.....", ".....KK.....", "....KCCK....", "...KCCCCK...",
+        "..KCCWCCCK..", "..KCCCCCCK..", ".KCCCCCWCCK.", ".KCWCCCCCCK.", ".KKKKKKKKKK.", "............"],
+  pm:  ["...K........", "...KRRRRRR..", "...KRRRRRRR.", "...KRRWWRRR.", "...KRRRRRR..", "...K........",
+        "...K........", "...K........", "...K........", "..KKK.......", ".KKKKK......", "............"],
+  human: ["............", "..HH....HH..", ".HHHH..HHHH.", "HHWHHHHHHHHH", "HHWHHHHHHHHH", "HHHHHHHHHHHH",
+          ".HHHHHHHHHH.", "..HHHHHHHH..", "...HHHHHH...", "....HHHH....", ".....HH.....", "............"]
+};
+var PAL = { K: "#e8e8f8", B: "#1a2350", G: "#6bff8a", C: "#5fe0d0", W: "#ffffff", R: "#ffb040", H: "#ff5c8a" };
+document.querySelectorAll("canvas[data-crest]").forEach(function (c) {
+  var g = c.getContext("2d");
+  CRESTS[c.getAttribute("data-crest")].forEach(function (row, y) {
+    for (var x = 0; x < row.length; x++) {
+      var col = PAL[row[x]];
+      if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
+    }
+  });
+});
+
+/* ---------- night sky ---------- */
+(function () {
+  var cv = document.getElementById("sky"), g = cv.getContext("2d");
+  var W = 320, H = 180, stars = [], still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  cv.width = W; cv.height = H;
+  var seed = 7;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  for (var i = 0; i < 90; i++) stars.push({ x: (rnd() * W) | 0, y: (rnd() * H * 0.7) | 0, p: rnd() * 6.28, big: rnd() > 0.88 });
+  var bands = ["#0b0b24", "#10102e", "#161538", "#1e1a44", "#2a1f4e", "#3a2554"];
+  function hills(base, amp, freq, col, off) {
+    g.fillStyle = col;
+    for (var x = 0; x < W; x++) {
+      var h = base + Math.round(Math.sin(x * freq + off) * amp + Math.sin(x * freq * 2.7 + off) * amp * 0.4);
+      g.fillRect(x, h, 1, H - h);
+    }
+  }
+  function draw(t) {
+    for (var b = 0; b < bands.length; b++) { g.fillStyle = bands[b]; g.fillRect(0, (H / bands.length) * b | 0, W, Math.ceil(H / bands.length)); }
+    stars.forEach(function (s) {
+      var a = still ? 0.8 : 0.45 + 0.55 * Math.abs(Math.sin(t / 900 + s.p));
+      g.fillStyle = "rgba(255,255,240," + a.toFixed(2) + ")";
+      g.fillRect(s.x, s.y, 1, 1);
+      if (s.big) { g.fillRect(s.x - 1, s.y, 3, 1); g.fillRect(s.x, s.y - 1, 1, 3); }
+    });
+    g.fillStyle = "#fff4c8"; // moon
+    for (var y = -7; y <= 7; y++) for (var x = -7; x <= 7; x++) if (x * x + y * y <= 49 && (x + 3) * (x + 3) + (y - 2) * (y - 2) > 30) g.fillRect(262 + x, 30 + y, 1, 1);
+    hills(132, 8, 0.03, "#1b1438", 1);
+    hills(148, 6, 0.05, "#120e2a", 3);
+    hills(164, 4, 0.09, "#0a0819", 5);
+  }
+  var last = 0;
+  function loop(t) { if (t - last > 120) { draw(t); last = t; } requestAnimationFrame(loop); }
+  draw(0);
+  if (!still) requestAnimationFrame(loop);
+})();
+
+/* ---------- party menu + dialog ---------- */
+(function () {
+  var members = Array.prototype.slice.call(document.querySelectorAll(".member"));
+  var say = document.getElementById("say"), speaker = document.getElementById("speaker");
+  var skills = document.getElementById("skills"), more = document.getElementById("more");
+  var current = "dev", timer = null, full = "";
+  var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var S = window.SITE;
+
+  function lines(job, T) {
+    switch (job) {
+      case "dev": return { name: T.role_dev, text: T.dev_body + " " + T.dev_body2,
+        skills: [[T.k_stack, S.stack.join(", ")], [null, T.dev_focus1], [null, T.dev_focus2], [null, T.dev_focus3]] };
+      case "sci": return { name: T.role_sci, text: T.sci_body + " " + T.sci_body2,
+        skills: [[null, T.sci_degree], [T.k_thesis, T.thesis], [T.k_topics, T.topic_arch + ", " + T.topic_mde + ", " + T.topic_perf], [T.k_pubs, "link:orcid:" + T.pubs]] };
+      case "pm": return { name: T.role_pm, text: T.pm_body + " " + T.pm_proto_d + " " + T.pm_cust_d,
+        skills: [[null, T.pm_proto_t], [null, T.pm_eng_t], [null, T.pm_cust_t], [null, T.employer]] };
+      default: return { name: T.role_human, text: T.human_body + " " + T.read_d,
+        skills: [[T.make_t, T.make_elec + ", " + T.make_print + ", " + T.make_cook], [T.pens_t, T.pens_d], [T.read_t, "Fantasy"], [T.play_t, "JRPGs, Soulslikes"]] };
+    }
+  }
+
+  function finish() { clearInterval(timer); timer = null; say.textContent = full; more.hidden = true; }
+
+  function render(animate) {
+    var T = window.T, d = lines(current, T);
+    speaker.textContent = d.name;
+    skills.textContent = "";
+    d.skills.forEach(function (s) {
+      var li = document.createElement("li"), span = document.createElement("span");
+      if (s[0]) { var k = document.createElement("span"); k.className = "k"; k.textContent = s[0] + ": "; span.appendChild(k); }
+      if (s[1].indexOf("link:") === 0) {
+        var parts = s[1].split(":"), a = document.createElement("a");
+        a.href = S.links[parts[1]]; a.target = "_blank"; a.rel = "noopener"; a.textContent = parts.slice(2).join(":");
+        span.appendChild(a);
+      } else span.appendChild(document.createTextNode(s[1]));
+      li.appendChild(span); skills.appendChild(li);
+    });
+    full = d.text;
+    clearInterval(timer);
+    if (!animate || still) { finish(); return; }
+    var i = 0; say.textContent = ""; more.hidden = false;
+    timer = setInterval(function () {
+      i += 2; say.textContent = full.slice(0, i);
+      if (i >= full.length) finish();
+    }, 18);
+  }
+
+  function select(m, focus) {
+    members.forEach(function (x) { var on = x === m; x.setAttribute("aria-selected", String(on)); x.tabIndex = on ? 0 : -1; });
+    current = m.getAttribute("data-job");
+    if (focus) m.focus();
+    render(true);
+  }
+  members.forEach(function (m, i) {
+    m.addEventListener("click", function () { select(m); });
+    m.addEventListener("keydown", function (e) {
+      var d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+      if (d) { e.preventDefault(); select(members[(i + d + members.length) % members.length], true); }
+    });
+  });
+  document.getElementById("dialog").addEventListener("click", function (e) { if (timer && !e.target.closest("a")) finish(); });
+  document.addEventListener("langchange", function () { render(false); });
+})();
+</script>
+<script src="shared/i18n.js"></script>
+</body>
+</html>
